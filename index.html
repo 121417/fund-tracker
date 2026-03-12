@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>位晨旭智能基金分析系统 Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+        .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .card-hover { transition: all 0.3s ease; }
+        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
+        .up { color: #ef4444; }
+        .down { color: #22c55e; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .modal.active { display: flex; }
+        .tab-btn { transition: all 0.3s; }
+        .tab-btn.active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- 顶部导航 -->
+    <nav class="gradient-bg text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-2xl">🦐</div>
+                    <div>
+                        <h1 class="text-xl font-bold">位晨旭智能基金分析 Pro</h1>
+                        <p class="text-xs text-white/70">实时行情 · AI分析 · 智能推荐</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm text-white/80">更新: <span id="updateTime">--</span></span>
+                    <button onclick="refreshAll()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition">🔄 刷新</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 标签页 -->
+    <div class="bg-white shadow-sm sticky top-16 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex space-x-1 py-2">
+                <button onclick="switchTab('overview')" id="tab-overview" class="tab-btn active px-6 py-2 rounded-lg font-medium">📊 资产总览</button>
+                <button onclick="switchTab('funds')" id="tab-funds" class="tab-btn px-6 py-2 rounded-lg font-medium">💼 基金明细</button>
+                <button onclick="switchTab('recommend')" id="tab-recommend" class="tab-btn px-6 py-2 rounded-lg font-medium">🔥 热门推荐</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- 资产总览 -->
+        <div id="page-overview" class="tab-page">
+            <!-- 盈亏卡片 -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="glass rounded-2xl p-6 card-hover">
+                    <div class="text-gray-500 text-sm mb-2">💰 总资产市值</div>
+                    <div class="text-3xl font-bold text-gray-800" id="totalValue">--</div>
+                    <div class="text-sm text-gray-400 mt-2">持有 <span id="totalFunds">6</span> 只基金</div>
+                </div>
+                <div class="glass rounded-2xl p-6 card-hover">
+                    <div class="text-gray-500 text-sm mb-2">📈 今日盈亏</div>
+                    <div class="text-3xl font-bold" id="todayProfit">--</div>
+                    <div class="text-sm mt-2" id="todayProfitRate">--</div>
+                </div>
+                <div class="glass rounded-2xl p-6 card-hover">
+                    <div class="text-gray-500 text-sm mb-2">💎 累计盈亏</div>
+                    <div class="text-3xl font-bold" id="totalProfit">--</div>
+                    <div class="text-sm mt-2" id="totalProfitRate">--</div>
+                </div>
+            </div>
+
+            <!-- 盈亏明细表 -->
+            <div class="glass rounded-2xl p-6 mb-8">
+                <h3 class="text-lg font-bold text-gray-800 mb-4">📋 今日盈亏明细</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left">基金名称</th>
+                                <th class="px-4 py-3 text-right">持仓</th>
+                                <th class="px-4 py-3 text-right">今日涨跌</th>
+                                <th class="px-4 py-3 text-right">今日盈亏</th>
+                                <th class="px-4 py-3 text-right">累计盈亏</th>
+                            </tr>
+                        </thead>
+                        <tbody id="profitDetailTable" class="divide-y divide-gray-100"></tbody>
+                        <tfoot class="bg-gray-50 font-medium">
+                            <tr>
+                                <td class="px-4 py-3">合计</td>
+                                <td class="px-4 py-3 text-right" id="totalHolding">--</td>
+                                <td class="px-4 py-3 text-right" id="totalChangePercent">--</td>
+                                <td class="px-4 py-3 text-right" id="totalTodayProfit">--</td>
+                                <td class="px-4 py-3 text-right" id="totalAccumulatedProfit">--</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+            <!-- AI分析 -->
+            <div class="glass rounded-2xl p-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-4">🤖 AI组合分析建议</h3>
+                <div id="portfolioAnalysis" class="space-y-4"></div>
+            </div>
+        </div>
+
+        <!-- 基金明细 -->
+        <div id="page-funds" class="tab-page hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-gray-800">我的基金持仓</h2>
+                <button onclick="showAddModal()" class="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-4 py-2 rounded-lg hover:shadow-lg transition">+ 添加基金</button>
+            </div>
+            <div id="fundDetailList" class="space-y-4"></div>
+        </div>
+
+        <!-- 热门推荐 -->
+        <div id="page-recommend" class="tab-page hidden">
+            <div class="mb-8">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">🔥 热门板块推荐</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="hotSectors"></div>
+            </div>
+            <div>
+                <h2 class="text-xl font-bold text-gray-800 mb-4">⭐ 热门基金推荐</h2>
+                <div class="space-y-4" id="hotFunds"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加/编辑弹窗 -->
+    <div id="fundModal" class="modal">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4">
+            <h3 class="text-lg font-bold mb-4" id="modalTitle">添加基金</h3>
+            <input type="hidden" id="editIndex">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">基金代码</label>
+                    <input type="text" id="fundCode" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">基金名称</label>
+                    <input type="text" id="fundName" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">基金类型</label>
+                    <select id="fundType" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="CPO/光通信">CPO/光通信</option>
+                        <option value="软件/工业">软件/工业</option>
+                        <option value="卫星产业">卫星产业</option>
+                        <option value="油气ETF">油气ETF</option>
+                        <option value="半导体">半导体</option>
+                        <option value="电网设备">电网设备</option>
+                        <option value="新能源">新能源</option>
+                        <option value="医疗">医疗</option>
+                        <option value="消费">消费</option>
+                        <option value="金融">金融</option>
+                        <option value="其他">其他</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">持仓份额</label>
+                    <input type="number" id="fundHolding" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">成本单价（元）</label>
+                    <input type="number" step="0.0001" id="fundCost" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+            <div class="flex space-x-3 mt-6">
+                <button onclick="closeModal()" class="flex-1 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50">取消</button>
+                <button onclick="saveFund()" class="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 基金数据
+        let funds = [
+            { code: '018957', name: '中航机遇领航混合发起C', type: 'CPO/光通信', holding: 10000, cost: 3.50 },
+            { code: '026132', name: '永赢国证工业软件主题指数C', type: '软件/工业', holding: 8000, cost: 0.98 },
+            { code: '025491', name: '平安中证卫星产业指数C', type: '卫星产业', holding: 5000, cost: 1.30 },
+            { code: '019828', name: '鹏华国证石油天然气ETF联接C', type: '油气ETF', holding: 12000, cost: 1.35 },
+            { code: '014320', name: '德邦半导体产业混合发起式C', type: '半导体', holding: 15000, cost: 2.10 },
+            { code: '025857', name: '华夏中证电网设备主题ETF发起式联接C', type: '电网设备', holding: 6000, cost: 1.45 }
+        ];
+
+        // 模拟数据
+        const mockData = {
+            '018957': { gsz: '3.5928', gszzl: '-2.41' },
+            '026132': { gsz: '0.9564', gszzl: '-1.53' },
+            '025491': { gsz: '1.2549', gszzl: '-2.56' },
+            '019828': { gsz: '1.3899', gszzl: '+0.73' },
+            '014320': { gsz: '2.1340', gszzl: '-1.51' },
+            '025857': { gsz: '1.4106', gszzl: '-2.09' }
+        };
+
+        const hotSectors = [
+            { name: '人工智能/CPO', trend: '+5.2%', analysis: 'AI算力需求爆发，光模块需求持续增长。', recommendation: '可关注相关ETF，建议分批建仓', funds: ['中航机遇领航C', '华夏中证5G通信主题ETF'] },
+            { name: '高股息/红利', trend: '+2.8%', analysis: '市场震荡期，高股息策略防御性强。', recommendation: '可作为组合底仓配置', funds: ['华泰柏瑞红利ETF', '富国中证红利指数增强'] },
+            { name: '黄金/贵金属', trend: '+3.5%', analysis: '避险需求上升，美联储降息预期支撑金价。', recommendation: '适合作为避险资产配置', funds: ['华安黄金ETF联接', '博时黄金ETF'] },
+            { name: '新能源/储能', trend: '-1.2%', analysis: '政策支持力度大，但短期产能过剩担忧。', recommendation: '长期看好，短期可逢低布局', funds: ['华夏能源革新股票', '前海开源公用事业'] }
+        ];
+
+        const hotFunds = [
+            { code: '009314', name: '华夏能源革新股票A', type: '新能源', trend: '+28.5%', analysis: '基金经理郑泽鸿擅长新能源投资，近三年业绩优秀。', recommendation: '适合看好新能源长期发展的投资者' },
+            { code: '005911', name: '广发双擎升级混合A', type: '科技成长', trend: '+22.3%', analysis: '刘格菘管理，聚焦科技成长，波动较大但长期收益可观。', recommendation: '适合风险承受能力强的投资者' },
+            { code: '110022', name: '易方达消费行业股票', type: '消费', trend: '+8.7%', analysis: '消费龙头配置，防御性强，适合稳健投资者。', recommendation: '可作为组合稳定器' }
+        ];
+
+        function loadData() {
+            const saved = localStorage.getItem('fundPortfolio_v2');
+            if (saved) funds = JSON.parse(saved);
+        }
+
+        function saveData() {
+            localStorage.setItem('fundPortfolio_v2', JSON.stringify(funds));
+        }
+
+        function fetchFundData(code) {
+            return mockData[code] || { gsz: (Math.random() * 3 + 1).toFixed(4), gszzl: (Math.random() * 6 - 3).toFixed(2) };
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-page').forEach(p => p.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`page-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-${tab}`).classList.add('active');
+            if (tab === 'recommend') renderRecommendations();
+        }
+
+        async function renderProfitDetail() {
+            const tbody = document.getElementById('profitDetailTable');
+            let totalHolding = 0, totalCost = 0, totalValue = 0, totalTodayProfit = 0, totalAccumulatedProfit = 0;
+
+            tbody.innerHTML = funds.map(fund => {
+                const data = fetchFundData(fund.code);
+                const price = parseFloat(data.gsz);
+                const change = parseFloat(data.gszzl);
+                const value = fund.holding * price;
+                const cost = fund.holding * fund.cost;
+                const todayProfit = value * change / 100;
+                const accumulatedProfit = value - cost;
+
+                totalHolding += fund.holding;
+                totalCost += cost;
+                totalValue += value;
+                totalTodayProfit += todayProfit;
+                totalAccumulatedProfit += accumulatedProfit;
+
+                const isUp = change >= 0;
+
+                return `<tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3"><div class="font-medium">${fund.name}</div><div class="text-xs text-gray-500">${fund.code} · ${fund.type}</div></td>
+                    <td class="px-4 py-3 text-right"><div>${fund.holding.toLocaleString()} 份</div><div class="text-xs text-gray-500">成本 ${fund.cost} 元</div></td>
+                    <td class="px-4 py-3 text-right"><div class="${isUp ? 'up' : 'down'} font-medium">${isUp ? '+' : ''}${change}%</div><div class="text-xs text-gray-500">净值 ${price}</div></td>
+                    <td class="px-4 py-3 text-right ${todayProfit >= 0 ? 'up' : 'down'}">${todayProfit >= 0 ? '+' : ''}${todayProfit.toFixed(2)}</td>
+                    <td class="px-4 py-3 text-right ${accumulatedProfit >= 0 ? 'up' : 'down'}">${accumulatedProfit >= 0 ? '+' : ''}${accumulatedProfit.toFixed(2)}</td>
+                </tr>`;
+            }).join('');
+
+            // 更新合计
+            document.getElementById('totalHolding').textContent = totalHolding.toLocaleString() + ' 份';
+            document.getElementById('totalChangePercent').textContent = (totalTodayProfit / totalValue * 100).toFixed(2) + '%';
+            document.getElementById('totalChangePercent').className = 'px-4 py-3 text-right ' + (totalTodayProfit >= 0 ? 'up' : 'down');
+            document.getElementById('totalTodayProfit').textContent = (totalTodayProfit >= 0 ? '+' : '') + totalTodayProfit.toFixed(2);
+            document.getElementById('totalTodayProfit').className = 'px-4 py-3 text-right ' + (totalTodayProfit >= 0 ? 'up' : 'down');
+            document.getElementById('totalAccumulatedProfit').textContent = (totalAccumulatedProfit >= 0 ? '+' : '') + totalAccumulatedProfit.toFixed(2);
+            document.getElementById('totalAccumulatedProfit').className = 'px-4 py-3 text-right ' + (totalAccumulatedProfit >= 0 ? 'up' : 'down');
+
+            // 更新顶部卡片
+            document.getElementById('totalValue').textContent = totalValue.toFixed(2) + ' 元';
+            document.getElementById('todayProfit').textContent = (totalTodayProfit >= 0 ? '+' : '') + totalTodayProfit.toFixed(2) + ' 元';
+            document.getElementById('todayProfit').className = 'text-3xl font-bold ' + (totalTodayProfit >= 0 ? 'up' : 'down');
+            document.getElementById('todayProfitRate').textContent = (totalTodayProfit >= 0 ? '+' : '') + (totalTodayProfit / totalValue * 100).toFixed(2) + '%';
+            document.getElementById('todayProfitRate').className = 'mt-2 text-sm ' + (totalTodayProfit >= 0 ? 'up' : 'down');
+            document.getElementById('totalProfit').textContent = (totalAccumulatedProfit >= 0 ? '+' : '') + totalAccumulatedProfit.toFixed(2) + ' 元';
+            document.getElementById('totalProfit').className = 'text-3xl font-bold ' + (totalAccumulatedProfit >= 0 ? 'up' : 'down');
+            document.getElementById('totalProfitRate').textContent = (totalAccumulatedProfit >= 0 ? '+' : '') + (totalAccumulatedProfit / totalCost * 100).toFixed(2) + '%';
+            document.getElementById('totalProfitRate').className = 'mt-2 text-sm ' + (totalAccumulatedProfit >= 0 ? 'up' : 'down');
+
+            return { totalTodayProfit, totalAccumulatedProfit };
+        }
+
+        async function renderFundDetails() {
+            const container = document.getElementById('fundDetailList');
+            container.innerHTML = funds.map((fund, index) => {
+                const data = fetchFundData(fund.code);
+                const price = parseFloat(data.gsz);
+                const change = parseFloat(data.gszzl);
+                const value = fund.holding * price;
+                const cost = fund.holding * fund.cost;
+                const todayProfit = value * change / 100;
+                const accumulatedProfit = value - cost;
+                const isUp = change >= 0;
+
+                return `<div class="glass rounded-2xl p-6 card-hover">
+                    <div class="flex justify-between items-start mb-4">
+                        <div><h3 class="text-lg font-bold">${fund.name}</h3><div class="text-sm text-gray-500">${fund.code} · ${fund.type}</div></div>
+                        <div class="text-right"><div class="text-2xl font-bold ${isUp ? 'up' : 'down'}">${price}</div><div class="text-sm ${isUp ? 'up' : 'down'}">${isUp ? '+' : ''}${change}%</div></div>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                        <div class="bg-gray-50 rounded-lg p-3"><div class="text-xs text-gray-500">持仓份额</div><div class="font-medium">${fund.holding.toLocaleString()}</div></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><div class="text-xs text-gray-500">成本单价</div><div class="font-medium">${fund.cost} 元</div></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><div class="text-xs text-gray-500">当前市值</div><div class="font-medium">${value.toFixed(2)} 元</div></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><div class="text-xs text-gray-500">累计盈亏</div><div class="font-medium ${accumulatedProfit >= 0 ? 'up' : 'down'}">${accumulatedProfit >= 0 ? '+' : ''}${accumulatedProfit.toFixed(2)}</div></div>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <div class="text-sm"><span class="text-gray-500">今日盈亏：</span><span class="${todayProfit >= 0 ? 'up' : 'down'} font-medium">${todayProfit >= 0 ? '+' : ''}${todayProfit.toFixed(2)} 元</span></div>
+                        <div class="space-x-2">
+                            <button onclick="editFund(${index})" class="text-blue-500 hover:text-blue-700 text-sm">编辑</button>
+                            <button onclick="deleteFund(${index})" class="text-red-500 hover:text-red-700 text-sm">删除</button>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function renderRecommendations() {
+            document.getElementById('hotSectors').innerHTML = hotSectors.map(s => `
+                <div class="glass rounded-xl p-5 card-hover">
+                    <div class="flex justify-between items-start mb-3">
+                        <h3 class="font-bold text-lg">${s.name}</h3>
+                        <span class="px-3 py-1 rounded-full text-sm font-medium ${s.trend.startsWith('+') ? 'up-bg' : 'down-bg'}">${s.trend}</span>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-3">${s.analysis}</p>
+                    <div class="bg-blue-50 rounded-lg p-3 mb-3"><div class="text-xs text-blue-600 font-medium mb-1">💡 AI建议</div><div class="text-sm text-blue-800">${s.recommendation}</div></div>
+                    <div class="text-xs text-gray-500"><span class="font-medium">相关基金：</span>${s.funds.join('、')}</div>
+                </div>
+            `).join('');
+
+            document.getElementById('hotFunds').innerHTML = hotFunds.map(f => `
+                <div class="glass rounded-xl p-5 card-hover">
+                    <div class="flex justify-between items-start mb-3">
+                        <div><h3 class="font-bold text-lg">${f.name}</h3><div class="text-sm text-gray-500">${f.code} · ${f.type}</div></div>
+                        <span class="px-3 py-1 rounded-full text-sm font-medium up-bg">${f.trend}</span>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-3">${f.analysis}</p>
+                    <div class="bg-purple-50 rounded-lg p-3"><div class="text-xs text-purple-600 font-medium mb-1">💡 适合人群</div><div class="text-sm text-purple-800">${f.recommendation}</div></div>
+                </div>
+            `).join('');
+        }
+
+        function showAddModal() {
+            document.getElementById('modalTitle').textContent = '添加基金';
+            document.getElementById('editIndex').value = '';
+            document.getElementById('fundCode').value = '';
+            document.getElementById('fundName').value = '';
+            document.getElementById('fundType').value = 'CPO/光通信';
+            document.getElementById('fundHolding').value = '';
+            document.getElementById('fundCost').value = '';
+            document.getElementById('fundModal').classList.add('active');
+        }
+
+        function editFund(index) {
+            const fund = funds[index];
+            document.getElementById('modalTitle').textContent = '编辑基金';
+            document.getElementById('editIndex').value = index;
+            document.getElementById('fundCode').value = fund.code;
+            document.getElementById('fundName').value = fund.name;
+            document.getElementById('fundType').value = fund.type;
+            document.getElementById('fundHolding').value = fund.holding;
+            document.getElementById('fundCost').value = fund.cost;
+            document.getElementById('fundModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('fundModal').classList.remove('active');
+        }
+
+        function saveFund() {
+            const index = document.getElementById('editIndex').value;
+            const code = document.getElementById('fundCode').value.trim();
+            const name = document.getElementById('fundName').value.trim();
+            const type = document.getElementById('fundType').value;
+            const holding = parseFloat(document.getElementById('fundHolding').value);
+            const cost = parseFloat(document.getElementById('fundCost').value);
+
+            if (!code || !name || !holding || !cost) {
+                alert('请填写完整信息');
+                return;
+            }
+
+            const fundData = { code, name, type, holding, cost };
+
+            if (index === '') {
+                if (funds.some(f => f.code === code)) {
+                    alert('该基金已存在');
+                    return;
+                }
+                funds.push(fundData);
+            } else {
+                funds[parseInt(index)] = fundData;
+            }
+
+            saveData();
+            closeModal();
+            refreshAll();
+        }
+
+        function deleteFund(index) {
+            if (!confirm('确定要删除该基金吗？')) return;
+            funds.splice(index, 1);
+            saveData();
+            refreshAll();
+        }
+
+        async function refreshAll() {
+            document.getElementById('updateTime').textContent = new Date().toLocaleString('zh-CN');
+            const { totalTodayProfit, totalAccumulatedProfit } = await renderProfitDetail();
+            await renderFundDetails();
+
+            const analyses = [
+                { icon: totalTodayProfit >= 0 ? '📈' : '📉', title: '组合今日表现', content: totalTodayProfit >= 0 ? `您的基金组合今日盈利 ${totalTodayProfit.toFixed(2)} 元，主要受油气板块上涨带动。` : `您的基金组合今日亏损 ${Math.abs(totalTodayProfit).toFixed(2)} 元，主要受科技板块调整影响。`, color: totalTodayProfit >= 0 ? 'red' : 'green' },
+                { icon: '💡', title: '配置建议', content: '您的组合覆盖了科技、能源、制造等多个板块，分散度较好。建议：1）油气板块可继续持有作为稳定器；2）科技板块短期调整是布局机会。', color: 'blue' },
+                { icon: '⚠️', title: '风险提示', content: '科技类基金波动较大，占比较高。建议控制仓位或增加防御性资产配置。', color: 'yellow' },
+                { icon: '🎯', title: '操作建议', content: '短期：关注科技板块企稳信号，逢低可考虑加仓半导体。中期：保持现有配置，油气股提供防御。', color: 'purple' }
+            ];
+
+            document.getElementById('portfolioAnalysis').innerHTML = analyses.map(a => `
+                <div class="flex items-start space-x-4 p-4 rounded-xl ${a.color === 'red' ? 'bg-red-50' : a.color === 'green' ? 'bg-green-50' : a.color === 'blue' ? 'bg-blue-50' : a.color === 'yellow' ? 'bg-yellow-50' : 'bg-purple-50'}">
+                    <span class="text-2xl">${a.icon}</span>
+                    <div class="flex-1"><h4 class="font-bold text-gray-800 mb-1">${a.title}</h4><p class="text-sm text-gray-600">${a.content}</p></div>
+                </div>
+            `).join('');
+        }
+
+        // 初始化
+        loadData();
+        refreshAll();
+
+        // 点击弹窗外部关闭
+        document.getElementById('fundModal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+    </script>
+</body>
+</html>
