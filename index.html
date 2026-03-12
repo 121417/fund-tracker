@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>位晨旭智能基金分析系统 Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
@@ -178,15 +180,24 @@
     </div>
 
     <script>
+        // Firebase 配置
+        const firebaseConfig = {
+            apiKey: "AIzaSyDummyKeyForDemo",
+            authDomain: "fund-tracker-demo.firebaseapp.com",
+            databaseURL: "https://fund-tracker-demo-default-rtdb.firebaseio.com",
+            projectId: "fund-tracker-demo",
+            storageBucket: "fund-tracker-demo.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdef123456"
+        };
+        
+        // 初始化 Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const fundsRef = database.ref('funds');
+        
         // 基金数据
-        let funds = [
-            { code: '018957', name: '中航机遇领航混合发起C', type: 'CPO/光通信', holding: 10000, cost: 3.50 },
-            { code: '026132', name: '永赢国证工业软件主题指数C', type: '软件/工业', holding: 8000, cost: 0.98 },
-            { code: '025491', name: '平安中证卫星产业指数C', type: '卫星产业', holding: 5000, cost: 1.30 },
-            { code: '019828', name: '鹏华国证石油天然气ETF联接C', type: '油气ETF', holding: 12000, cost: 1.35 },
-            { code: '014320', name: '德邦半导体产业混合发起式C', type: '半导体', holding: 15000, cost: 2.10 },
-            { code: '025857', name: '华夏中证电网设备主题ETF发起式联接C', type: '电网设备', holding: 6000, cost: 1.45 }
-        ];
+        let funds = [];
 
         // 模拟数据
         const mockData = {
@@ -211,14 +222,41 @@
             { code: '110022', name: '易方达消费行业股票', type: '消费', trend: '+8.7%', analysis: '消费龙头配置，防御性强，适合稳健投资者。', recommendation: '可作为组合稳定器' }
         ];
 
+        // 从云端加载数据
         function loadData() {
-            const saved = localStorage.getItem('fundPortfolio_v2');
-            if (saved) funds = JSON.parse(saved);
+            fundsRef.once('value').then((snapshot) => {
+                const data = snapshot.val();
+                if (data && data.length > 0) {
+                    funds = data;
+                } else {
+                    // 首次使用，初始化默认数据
+                    funds = [
+                        { code: '018957', name: '中航机遇领航混合发起C', type: 'CPO/光通信', holding: 10000, cost: 3.50 },
+                        { code: '026132', name: '永赢国证工业软件主题指数C', type: '软件/工业', holding: 8000, cost: 0.98 },
+                        { code: '025491', name: '平安中证卫星产业指数C', type: '卫星产业', holding: 5000, cost: 1.30 },
+                        { code: '019828', name: '鹏华国证石油天然气ETF联接C', type: '油气ETF', holding: 12000, cost: 1.35 },
+                        { code: '014320', name: '德邦半导体产业混合发起式C', type: '半导体', holding: 15000, cost: 2.10 },
+                        { code: '025857', name: '华夏中证电网设备主题ETF发起式联接C', type: '电网设备', holding: 6000, cost: 1.45 }
+                    ];
+                    saveData();
+                }
+                refreshAll();
+            });
         }
 
+        // 保存到云端
         function saveData() {
-            localStorage.setItem('fundPortfolio_v2', JSON.stringify(funds));
+            fundsRef.set(funds);
         }
+        
+        // 监听云端数据变化
+        fundsRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                funds = data;
+                refreshAll();
+            }
+        });
 
         function fetchFundData(code) {
             return mockData[code] || { gsz: (Math.random() * 3 + 1).toFixed(4), gszzl: (Math.random() * 6 - 3).toFixed(2) };
@@ -428,9 +466,9 @@
             `).join('');
         }
 
-        // 初始化
+        // 初始化 - 显示加载状态
+        document.getElementById('fundDetailList').innerHTML = '<div class="text-center py-12"><div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div><p class="mt-2 text-gray-500">正在从云端加载数据...</p></div>';
         loadData();
-        refreshAll();
 
         // 点击弹窗外部关闭
         document.getElementById('fundModal').addEventListener('click', function(e) {
